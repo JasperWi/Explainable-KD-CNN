@@ -306,7 +306,7 @@ def main():
     parser.add_argument('--temperature', type=float, default=50, help='Temperature for the knowledge distillation')
     parser.add_argument('--num_models', type=int, default=10, help='Number of models to train for each configuration')
     parser.add_argument('--output_directory', type=str, default='./output', help='Directory to save the trained models and the training results')
-    parser.add_argument('--imageNet_path', type=str, default='./data/imagenet', help='Path to the ImageNet dataset')
+    parser.add_argument('--imageNet_path', type=str, default='C:\Users\Admin\Desktop\Thesis', help='Path to the ImageNet dataset')
 
     # Read the command line arguments
     epochs = argparse.parse_args().epochs
