@@ -181,14 +181,14 @@ def train_with_knowledge_distillation(teacher, student, train_loader, T, optimiz
         # Log the loss
         running_loss += loss.item()
 
-        # Calculate accuracy
-        total_correct += (torch.argmax(student_logits, 1) == labels).sum().item()
-        total_samples += labels.size(0)
-        accuracy = total_correct / total_samples * 100
+    # Calculate accuracy
+    total_correct += (torch.argmax(student_logits, 1) == labels).sum().item()
+    total_samples += labels.size(0)
+    accuracy = total_correct / total_samples * 100
 
-        # Print the time per epoch
-        elapsed_time = time.time() - start_time
-        print(f"Time per Epoch: {elapsed_time:.2f}s")
+    # Print the time per epoch
+    elapsed_time = time.time() - start_time
+    print(f"Time per Epoch: {elapsed_time:.2f}s")
     return running_loss / len(train_loader), accuracy, ce_loss_value, kd_loss_value
 
 def train_student_models(output_dir, epochs, teacher, train_loader, test_loader, number_of_models, temperature, learning_rate, csv_file):
@@ -306,15 +306,15 @@ def main():
     parser.add_argument('--temperature', type=float, default=50, help='Temperature for the knowledge distillation')
     parser.add_argument('--num_models', type=int, default=10, help='Number of models to train for each configuration')
     parser.add_argument('--output_directory', type=str, default='./output', help='Directory to save the trained models and the training results')
-    parser.add_argument('--imageNet_path', type=str, default='C:\Users\Admin\Desktop\Thesis', help='Path to the ImageNet dataset')
+    parser.add_argument('--imageNet_path', type=str, default='C:/Users/Admin/Desktop/Thesis', help='Path to the ImageNet dataset')
 
     # Read the command line arguments
-    epochs = argparse.parse_args().epochs
-    temperature = argparse.parse_args().temperature
-    learning_rate = argparse.parse_args().learning_rate
-    num_models = argparse.parse_args().num_models
-    output_directory = argparse.parse_args().output_directory
-    imageNet_path = argparse.parse_args().imageNet_path
+    epochs = parser.parse_args().epochs
+    temperature = parser.parse_args().temperature
+    learning_rate = parser.parse_args().learning_rate
+    num_models = parser.parse_args().num_models
+    output_directory = parser.parse_args().output_directory
+    imageNet_path = parser.parse_args().imageNet_path
 
 
     # Define the indeces of the selected classes from the ImageNet dataset that are used for training
@@ -327,7 +327,7 @@ def main():
     teacher = resnet50(weights=ResNet50_Weights.DEFAULT)
 
     # Prepare the CSV file
-    prepare_csv_file(argparse.parse_args().output_directory)
+    prepare_csv_file(output_directory)
 
     # Start training loop
     train_student_models(output_directory, epochs, teacher, train_loader, test_loader, num_models, temperature, learning_rate, output_directory)

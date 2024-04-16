@@ -77,7 +77,9 @@ def calculate_prediction_drop(model, x_batch, y1_batch, a_batch):
                 predictions.append(torch.nn.functional.softmax(model(torch.tensor(obscured_image, dtype=torch.float32).unsqueeze(0).to("cuda")), dim=-1)[0][y1_batch[index]].item())
         prediction_values.append(predictions)
 
-def create_saliency_maps(CamVersion, model, x_batch, y_batch):
+    return prediction_values
+
+def create_saliency_maps(CamVersion, model, x_batch, y_batch, x_batch_loader):
     """
     Create the saliency maps for the images in the batch using the given Grad-CAM version
 
@@ -98,7 +100,7 @@ def create_saliency_maps(CamVersion, model, x_batch, y_batch):
     a_batch = np.zeros((len(x_batch), *x_batch[0].shape[1:]))
 
     # Create the saliency maps for each image in the batch
-    for i, single_image in enumerate(x_batch):
+    for i, single_image in enumerate(x_batch_loader):
         input_tensor = single_image.unsqueeze(0)
         targets = [ClassifierOutputTarget(y_batch[i])]
         grayscale_cam = cam(input_tensor=input_tensor, targets=targets, aug_smooth=True)[0, :]
@@ -121,6 +123,12 @@ def run_quantus_evaluation_scripts(model, x_batch, y_batch, s_batch, a_batch):
     :param a_batch: The saliency maps of the images in the batch
     :return: The mean of the scores across all samples
     """
+
+    # Filter out image with index 323 as its segmentation map is all zeros
+    x_batch = np.concatenate([x_batch[:323,:,:,:], x_batch[323 + 1:,:,:,:]],axis=0)
+    a_batch = np.concatenate([a_batch[:323,:,:], a_batch[323 + 1:,:,:]],axis=0)
+    y_batch = np.concatenate([y_batch[:323], y_batch[323 + 1:]],axis=0)
+    s_batch = np.concatenate([s_batch[:323,:,:,:], s_batch[323 + 1:,:,:,:]],axis=0)
 
     # Calculate the prediction drop when important pixels are removed
     print("Calculating the prediction drop")
@@ -231,10 +239,10 @@ def prepare_data(path_to_data, selected_classes):
     segmentation_map_loader = create_dataloader_segmentation_maps(path_to_data)
 
     # Load the entire dataset of original images
-    x_batch, y_batch = next(iter(original_images_loader))
+    x_batch_loader, y_batch = next(iter(original_images_loader))
 
     # Convert the tensors to numpy arrays
-    x_batch = x_batch.cpu().numpy()
+    x_batch = x_batch_loader.cpu().numpy()
     y_batch = y_batch.cpu().numpy()
 
     # Load the entire dataset of segmentation maps
@@ -257,12 +265,7 @@ def prepare_data(path_to_data, selected_classes):
 
     y_batch = [selected_classes[i] for i in y_batch]
 
-    # Filter out classes where the segmentation map is all zeros
-    x_batch = np.concatenate([x_batch[:323,:,:,:], x_batch[323 + 1:,:,:,:]],axis=0)
-    y_batch = np.concatenate([y_batch[:323], y_batch[323 + 1:]],axis=0)
-    s_batch = np.concatenate([s_batch[:323,:,:,:], s_batch[323 + 1:,:,:,:]],axis=0)
-
-    return y_batch, s_batch, x_batch
+    return y_batch, s_batch, x_batch, x_batch_loader
 
 
 def create_dataloader_orginal_images(path_to_data):
@@ -430,7 +433,7 @@ def main():
     selected_classes = [1, 3, 11, 31, 222, 277, 284, 295, 301, 325, 330, 333, 342, 368, 386, 388, 404, 412, 418, 436, 449, 466, 487, 492, 502, 510, 531, 532, 574, 579, 606, 617, 659, 670, 695, 703, 748, 829, 846, 851, 861, 879, 883, 898, 900, 914, 919, 951, 959, 992]
 
     # Load the testing data samples
-    y_batch, s_batch, x_batch = prepare_data(path_to_data, selected_classes)
+    y_batch, s_batch, x_batch, x_batch_loader = prepare_data(path_to_data, selected_classes)
 
     # Prepare the CSV files that will store the results
     prepare_csv_files(output_folder)
@@ -445,10 +448,10 @@ def main():
         for CamVersion in [XGradCAM, AblationCAM, HiResCAM, GradCAM, GradCAMPlusPlus, EigenCAM]:
             for model_index, model in enumerate(models):
                 # Create the saliency maps for the current model and Grad-CAM version
-                a_batch = create_saliency_maps(CamVersion, model, x_batch, y_batch)
+                a_batch = create_saliency_maps(CamVersion, model, x_batch, y_batch, x_batch_loader)
 
                 # Run the Quantus evaluation scripts
-                PointingGame_score, AttributionLocalisation_score, RelevanceRankAccuracy_score, TopKIntersection_Score, Monotonicity_Score, FaithfullnessEstimate_Score, prediction_values  = run_quantus_evaluation_scripts(CamVersion, model, x_batch, y_batch, s_batch, a_batch)
+                PointingGame_score, AttributionLocalisation_score, RelevanceRankAccuracy_score, TopKIntersection_Score, Monotonicity_Score, FaithfullnessEstimate_Score, prediction_values  = run_quantus_evaluation_scripts(model, x_batch, y_batch, s_batch, a_batch)
 
                 # Save the results to the output folder
                 save_results(output_folder, kd_factor, model_index, CamVersion, PointingGame_score, AttributionLocalisation_score, RelevanceRankAccuracy_score, TopKIntersection_Score, Monotonicity_Score, FaithfullnessEstimate_Score, prediction_values)
