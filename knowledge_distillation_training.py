@@ -14,6 +14,10 @@ import argparse
 import time
 
 
+#####################################
+#           Data Preparation        #
+#####################################
+
 def create_dataloader(selected_classes, imageNet_path):
     """
     Create data loaders for ImageNet dataset with only selected classes
@@ -67,6 +71,9 @@ def create_dataloader(selected_classes, imageNet_path):
     filtered_test_loader = DataLoader(filtered_test_dataset, batch_size=batch_size, shuffle=False, num_workers=16, pin_memory=True, persistent_workers = True)
     return filtered_train_loader, filtered_test_loader
 
+#####################################
+#           Training Functions      #
+#####################################
 
 
 def test_accuracy(model, test_loader):
@@ -184,51 +191,6 @@ def train_with_knowledge_distillation(teacher, student, train_loader, T, optimiz
         print(f"Time per Epoch: {elapsed_time:.2f}s")
     return running_loss / len(train_loader), accuracy, ce_loss_value, kd_loss_value
 
-
-
-def prepare_csv_file(dir):
-    """
-    Prepare the CSV file for logging the training results
-
-    :param dir: The directory where the CSV file should be saved
-    """
-
-
-    # Define CSV file name
-    csv_file = dir + '/results.csv'
-
-    # Open CSV file for writing the results
-    with open(csv_file, mode='a', newline='') as file:
-        # Create CSV writer
-        csv_writer = csv.writer(file)
-        # Write header
-        csv_writer.writerow(['Epoch', 'Learning Rate', 'Temperature', 'Model Nr',  'Loss', 'Training Accuracy', 'Validation Accuracy', 'Distillation'])
-
-
-def write_to_csv(dir, epoch, learning_rate, temperature, model_number, loss, train_acc, val_acc, loss_factor_kd, ce_loss_value, kd_loss_value):
-    """
-    Write the training results to the CSV file
-
-    :param dir: The directory where the CSV file should be saved
-    :param epoch: The current epoch
-    :param learning_rate: The learning rate
-    :param temperature: The temperature for the knowledge distillation
-    :param model_number: The model number
-    :param loss: The loss value
-    :param train_acc: The training accuracy
-    :param val_acc: The validation accuracy
-    :param loss_factor_kd: The factor for the knowledge distillation loss
-    :param ce_loss_value: The cross-entropy loss value
-    :param kd_loss_value: The knowledge distillation loss value
-    """
-
-    csv_file = dir + '/results.csv'
-    with open(csv_file, mode='a', newline='') as file:
-        csv_writer = csv.writer(file)
-        csv_writer.writerow([epoch+1, learning_rate, temperature, model_number, loss, train_acc, val_acc, loss_factor_kd])
-    print(f"Epoch {epoch+1}, Learningrate: {learning_rate},Temperature: {temperature}, ModelNR: {model_number}, Loss: {loss}, Train Accuracy: {train_acc}, Validation Accuracy: {val_acc}, Distillation: {loss_factor_kd}, CE_Loss: {ce_loss_value}, KD_Loss: {kd_loss_value}")
-
-
 def train_student_models(output_dir, epochs, teacher, train_loader, test_loader, number_of_models, temperature, learning_rate, csv_file):
     """
     Train the student models with knowledge distillation, log the results and save the trained models.
@@ -274,6 +236,58 @@ def train_student_models(output_dir, epochs, teacher, train_loader, test_loader,
             # Save the trained model
             model_filename = f'{output_dir}/model_distillation_{loss_factor_kd}_fold_{model_number}.pth'
             torch.save(student.state_dict(), model_filename)
+
+
+#####################################
+#           Logging Functions       #
+#####################################
+
+def prepare_csv_file(dir):
+    """
+    Prepare the CSV file for logging the training results
+
+    :param dir: The directory where the CSV file should be saved
+    """
+
+
+    # Define CSV file name
+    csv_file = dir + '/results.csv'
+
+    # Open CSV file for writing the results
+    with open(csv_file, mode='a', newline='') as file:
+        # Create CSV writer
+        csv_writer = csv.writer(file)
+        # Write header
+        csv_writer.writerow(['Epoch', 'Learning Rate', 'Temperature', 'Model Nr',  'Loss', 'Training Accuracy', 'Validation Accuracy', 'Distillation'])
+
+
+def write_to_csv(dir, epoch, learning_rate, temperature, model_number, loss, train_acc, val_acc, loss_factor_kd, ce_loss_value, kd_loss_value):
+    """
+    Write the training results to the CSV file
+
+    :param dir: The directory where the CSV file should be saved
+    :param epoch: The current epoch
+    :param learning_rate: The learning rate
+    :param temperature: The temperature for the knowledge distillation
+    :param model_number: The model number
+    :param loss: The loss value
+    :param train_acc: The training accuracy
+    :param val_acc: The validation accuracy
+    :param loss_factor_kd: The factor for the knowledge distillation loss
+    :param ce_loss_value: The cross-entropy loss value
+    :param kd_loss_value: The knowledge distillation loss value
+    """
+
+    csv_file = dir + '/results.csv'
+    with open(csv_file, mode='a', newline='') as file:
+        csv_writer = csv.writer(file)
+        csv_writer.writerow([epoch+1, learning_rate, temperature, model_number, loss, train_acc, val_acc, loss_factor_kd])
+    print(f"Epoch {epoch+1}, Learningrate: {learning_rate},Temperature: {temperature}, ModelNR: {model_number}, Loss: {loss}, Train Accuracy: {train_acc}, Validation Accuracy: {val_acc}, Distillation: {loss_factor_kd}, CE_Loss: {ce_loss_value}, KD_Loss: {kd_loss_value}")
+
+
+#####################################
+#           Main Function           #
+#####################################
 
 def main():
     # Define the command line arguments

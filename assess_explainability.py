@@ -3,7 +3,6 @@ import quantus
 import torch
 from torchvision import transforms
 import numpy as np
-import gc
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.datasets import ImageFolder
@@ -13,7 +12,21 @@ from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
 import csv
 import argparse
 
+
+#####################################
+#           Evaluation Functions    #
+#####################################
+
 def get_pixels_between_percentiles(heatmap, lower_percentile, upper_percentile):
+    """ 
+    Get the pixel coordinates of the heatmap that are between the lower and upper percentile of the values in the heatmap
+
+    :param heatmap: The heatmap for which the pixel coordinates should be extracted
+    :param lower_percentile: The lower percentile of the values in the heatmap
+    :param upper_percentile: The upper percentile of the values in the heatmap
+    :return: The pixel coordinates of the heatmap that are between the lower and upper percentile of the values in the heatmap
+    """
+
     heatmap_flat = heatmap.flatten()
     sorted_indices = np.argsort(heatmap_flat)
     num_pixels = len(sorted_indices)
@@ -23,18 +36,40 @@ def get_pixels_between_percentiles(heatmap, lower_percentile, upper_percentile):
     return pixel_indices
 
 def obscure_pixels(original_image, pixel_coords):
+    """
+    Obscure the pixels in the original image at the given coordinates by setting them to black
+
+    :param original_image: The original image
+    :param pixel_coords: The pixel coordinates to obscure
+    :return: The image with the pixels at the given coordinates set to black
+    """
+
     obscured_image = original_image.copy()
     for x, y in zip(*pixel_coords):
         obscured_image[:, x, y] = 0
     return obscured_image
 
 def calculate_prediction_drop(model, x_batch, y1_batch, a_batch):
+    """
+    Calculate the prediction drop when important pixels are removed from the images in the batch
+
+    :param model: The model to calculate the prediction drop for
+    :param x_batch: The batch of images
+    :param y1_batch: The labels of the images in the batch
+    :param a_batch: The saliency maps of the images in the batch
+    :return: The prediction drop when important pixels are removed from the images in the batch
+    """
+
     prediction_values = []
     for index, image in enumerate(x_batch):
         predictions = []
+
+        # Calculate the prediction for the original image
         with torch.no_grad():
             preds = torch.nn.functional.softmax(model(torch.tensor(image, dtype=torch.float32).unsqueeze(0).to("cuda")), dim=-1)[0]
             predictions.append(preds[y1_batch[index]].item())
+
+        # Calculate the prediction for the image with different percentages of important pixels removed
         for percetage in range(0, 100, 10):
             pixel_coords = get_pixels_between_percentiles(a_batch[index], percetage, percetage +10)
             obscured_image = obscure_pixels(image, pixel_coords)
@@ -43,9 +78,18 @@ def calculate_prediction_drop(model, x_batch, y1_batch, a_batch):
         prediction_values.append(predictions)
 
 def create_saliency_maps(CamVersion, model, x_batch, y_batch):
+    """
+    Create the saliency maps for the images in the batch using the given Grad-CAM version
+
+    :param CamVersion: The Grad-CAM version to use
+    :param model: The model to create the saliency maps for
+    :param x_batch: The batch of images to create the saliency maps for
+    :param y_batch: The labels of the images in the batch
+    :return: The saliency maps for the images in the batch
+    """
+
     # Selecting the last convolutional layer as the target layer to apply Grad-CAM to
     target_layers = [model.features[-1]]
-
 
     # Initialize the Grad-CAM object
     cam = CamVersion(model=model, target_layers=target_layers, use_cuda=True)
@@ -67,6 +111,16 @@ def create_saliency_maps(CamVersion, model, x_batch, y_batch):
     return a_batch
 
 def run_quantus_evaluation_scripts(model, x_batch, y_batch, s_batch, a_batch):
+    """"
+    Run the scripts from the Quantus library to evaluate the explainability of the model
+
+    :param model: The model to evaluate
+    :param x_batch: The batch of images to evaluate
+    :param y_batch: The labels of the images in the batch
+    :param s_batch: The segmentation maps of the images in the batch
+    :param a_batch: The saliency maps of the images in the batch
+    :return: The mean of the scores across all samples
+    """
 
     # Calculate the prediction drop when important pixels are removed
     print("Calculating the prediction drop")
@@ -159,7 +213,20 @@ def run_quantus_evaluation_scripts(model, x_batch, y_batch, s_batch, a_batch):
         prediction_values
     )
 
+#####################################
+#           Data Preparation        #
+#####################################
+
 def prepare_data(path_to_data, selected_classes):
+    """"
+    Prepare the data for the evaluation
+
+    :param path_to_data: The path to the ImageNet dataset
+    :param selected_classes: The indices of the classes to use
+    :return: The labels, segmentation maps, and images of the dataset
+
+    """
+
     original_images_loader = create_dataloader_orginal_images(path_to_data)
     segmentation_map_loader = create_dataloader_segmentation_maps(path_to_data)
 
@@ -199,6 +266,12 @@ def prepare_data(path_to_data, selected_classes):
 
 
 def create_dataloader_orginal_images(path_to_data):
+    """"
+    Create a DataLoader for the test dataset of original images
+
+    :param path_to_data: The path to the ImageNet dataset
+    :return: The DataLoader for the test dataset of original images
+    """
 
     # Define the transformation for the original images
     test_transform = transforms.Compose([
@@ -218,6 +291,12 @@ def create_dataloader_orginal_images(path_to_data):
     return filtered_test_loader
 
 def create_dataloader_segmentation_maps(path_to_data):
+    """
+    Create a DataLoader for the test dataset of segmentation maps
+
+    :param path_to_data: The path to the ImageNet dataset
+    :return: The DataLoader for the test dataset of segmentation maps
+    """
 
     # Define the transformation for the segmentation maps
     plain_test_transform = transforms.Compose([
@@ -234,7 +313,17 @@ def create_dataloader_segmentation_maps(path_to_data):
     plain_filtered_test_loader = DataLoader(plain_test_dataset, batch_size=batch_size, shuffle=False, num_workers=16, pin_memory=True)
     return plain_filtered_test_loader
 
+#####################################
+#           Output File Handling    #
+#####################################
+
 def prepare_csv_files(output_folder):
+    """
+    Prepare the CSV files that will store the results
+
+    :param output_folder: The path to the output folder
+    """
+
     # Create the CSV file for the score values of the explainability metrics
     with open(output_folder + '/explainability_metrics.csv', mode='a', newline='') as file:
         csv_writer = csv.writer(file)
@@ -246,6 +335,22 @@ def prepare_csv_files(output_folder):
         csv_writer.writerow(['Distillation', 'Model_Index', 'CamVersion', 'Image_Nr'] + [str(i)+"%" for i in range(-10, 100, 10)])
 
 def save_results(output_folder, kd_factor, model_index, CamVersion, PointingGame_score, AttributionLocalisation_score, RelevanceRankAccuracy_score, TopKIntersection_Score, Monotonicity_Score, FaithfullnessEstimate_Score, prediction_values):
+    """
+    Save the results to the output folder
+
+    :param output_folder: The path to the output folder
+    :param kd_factor: The knowledge distillation factor
+    :param model_index: The index of the model
+    :param CamVersion: The Grad-CAM version
+    :param PointingGame_score: The Pointing Game score
+    :param AttributionLocalisation_score: The Attribution Localisation score
+    :param RelevanceRankAccuracy_score: The Relevance Rank Accuracy score
+    :param TopKIntersection_Score: The Top K Intersection score
+    :param Monotonicity_Score: The Monotonicity score
+    :param FaithfullnessEstimate_Score: The Faithfullness Estimate score
+    :param prediction_values: The prediction values when important pixels are removed
+    """
+    
     with open(output_folder + 'explainability_metrics.csv', mode='a', newline='') as file:
         csv_writer = csv.writer(file)
         csv_writer.writerow([kd_factor, PointingGame_score, AttributionLocalisation_score, RelevanceRankAccuracy_score, TopKIntersection_Score, Monotonicity_Score, FaithfullnessEstimate_Score, CamVersion.__name__])
@@ -258,6 +363,15 @@ def save_results(output_folder, kd_factor, model_index, CamVersion, PointingGame
             csv_writer.writerow(row_with_index)
 
 def load_model(path_to_checkpoints, num_models, kd_factor):
+    """
+    Load the models for the current knowledge distillation factor
+
+    :param path_to_checkpoints: The path to the checkpoint files
+    :param num_models: The number of models to evaluate
+    :param kd_factor: The knowledge distillation factor
+    :return: The models for the current knowledge distillation factor
+    """
+
     models = []
     # Load all models for the current knowledge distillation factor
     for model_num in range(num_models):
@@ -281,6 +395,12 @@ def load_model(path_to_checkpoints, num_models, kd_factor):
             break
     
     return models
+
+
+#####################################
+#           Main Function           #
+#####################################
+
 
 
 def main():
@@ -308,8 +428,6 @@ def main():
 
     # Define the indices of the 10 classes you want to use (assuming they are consecutive)
     selected_classes = [1, 3, 11, 31, 222, 277, 284, 295, 301, 325, 330, 333, 342, 368, 386, 388, 404, 412, 418, 436, 449, 466, 487, 492, 502, 510, 531, 532, 574, 579, 606, 617, 659, 670, 695, 703, 748, 829, 846, 851, 861, 879, 883, 898, 900, 914, 919, 951, 959, 992]
-    selected_original_classes = [450, 443, 387, 500, 141, 62, 95, 163, 622, 645,188, 157, 78, 185, 24, 169, 230, 752, 907, 266,689, 887, 914, 762, 979, 243, 529, 315, 792, 227,659, 918, 829, 260, 584, 306, 939, 287, 304, 944,312, 220, 874, 958, 795, 240, 932, 320, 999, 913]
-    non_selected_classes = set(range(1000)) - set(selected_classes)
 
     # Load the testing data samples
     y_batch, s_batch, x_batch = prepare_data(path_to_data, selected_classes)
@@ -320,12 +438,19 @@ def main():
     print("data loading complete")
 
     for kd_factor in [0, 0.25, 0.5, 0.75, 1.0]:
+        # Load the models for the current knowledge distillation factor
         models = load_model(path_to_checkpoints, num_models, kd_factor)
         
+        # Iterate different Grad-CAM versions
         for CamVersion in [XGradCAM, AblationCAM, HiResCAM, GradCAM, GradCAMPlusPlus, EigenCAM]:
             for model_index, model in enumerate(models):
+                # Create the saliency maps for the current model and Grad-CAM version
                 a_batch = create_saliency_maps(CamVersion, model, x_batch, y_batch)
+
+                # Run the Quantus evaluation scripts
                 PointingGame_score, AttributionLocalisation_score, RelevanceRankAccuracy_score, TopKIntersection_Score, Monotonicity_Score, FaithfullnessEstimate_Score, prediction_values  = run_quantus_evaluation_scripts(CamVersion, model, x_batch, y_batch, s_batch, a_batch)
+
+                # Save the results to the output folder
                 save_results(output_folder, kd_factor, model_index, CamVersion, PointingGame_score, AttributionLocalisation_score, RelevanceRankAccuracy_score, TopKIntersection_Score, Monotonicity_Score, FaithfullnessEstimate_Score, prediction_values)
 
 
