@@ -2,20 +2,15 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from torchvision import datasets, transforms
+from torchvision import transforms
 from torchvision.models import mobilenet_v3_small
 import torchvision.transforms as transforms
 from torchvision.datasets import ImageFolder
 from torch.utils.data import DataLoader
 from torch.utils.data import Subset
-from torchvision.models import resnet18, ResNet18_Weights
 from torchvision.models import resnet50, ResNet50_Weights
-from sklearn.model_selection import KFold
 import csv
-
-# Define the indices of the 10 classes you want to use (assuming they are consecutive)
-selected_classes = [1, 3, 11, 31, 222, 277, 284, 295, 301, 325, 330, 333, 342, 368, 386, 388, 404, 412, 418, 436, 449, 466, 487, 492, 502, 510, 531, 532, 574, 579, 606, 617, 659, 670, 695, 703, 748, 829, 846, 851, 861, 879, 883, 898, 900, 914, 919, 951, 959, 992]
-non_selected_classes = set(range(1000)) - set(selected_classes)
+import argparse
 
 def create_dataloader():
     # Define the path to your ImageNet dataset
@@ -62,32 +57,36 @@ def create_dataloader():
     filtered_test_loader = DataLoader(filtered_test_dataset, batch_size=batch_size, shuffle=False, num_workers=16, pin_memory=True, persistent_workers = True)
     return filtered_train_loader, filtered_test_loader
 
-def test(model, test_loader, device):
-    model.to(device)
+def test_accuracy(model, test_loader):
+    model.to("cuda")
     model.eval()
 
     correct = 0
     total = 0
 
-    it = 0
     with torch.no_grad():
         for inputs, labels in test_loader:
-            inputs, labels = inputs.to(device), labels.to(device)
+            # Move the inputs and labels to the GPU
+            inputs, labels = inputs.to("cuda"), labels.to("cuda")
 
+            # Forward pass
             outputs = model(inputs)
+            # Get the predicted class
             _, predicted = torch.max(outputs.data, 1)
 
+            # Update the total and correct counts
             total += labels.size(0)
+
+            # Check how many predictions are correct
             correct += (predicted == labels).sum().item()
 
     accuracy = 100 * correct / total
-    #print(f"Test Accuracy: {accuracy:.2f}%")
     return accuracy
 
 import time
 
 
-def train_knowledge_distillation(teacher, student, train_loader, epochs, T, soft_target_loss_weight, ce_loss_weight, optimizer, ce_loss, disti):
+def train_with_knowledge_distillation(teacher, student, train_loader, T, soft_target_loss_weight, ce_loss_weight, optimizer, ce_loss, disti):
     elapsed_time = 0
     start_time = time.time()
 
@@ -155,46 +154,96 @@ def train_knowledge_distillation(teacher, student, train_loader, epochs, T, soft
 
 
 
-def main():
-    filtered_train_loader, filtered_test_loader = create_dataloader()
-
-    teacher = resnet50(weights=ResNet50_Weights.DEFAULT)
-
+def prepare_csv_file(dir):
     # Define CSV file name
-    csv_file = './FINFINFIN/run.csv'
+    csv_file = dir + '/results.csv'
 
-    # Open CSV file for writing
+    # Open CSV file for writing the results
     with open(csv_file, mode='a', newline='') as file:
         # Create CSV writer
         csv_writer = csv.writer(file)
         # Write header
         csv_writer.writerow(['Epoch', 'Learning Rate', 'Temperature', 'Model Nr',  'Loss', 'Training Accuracy', 'Validation Accuracy', 'Distillation'])
 
-    for nr in range(7,30):
-        for learning_rate in [0.003]:
-            for disti in [0.5,0,0.25,0.75,1]:
-                for temperature in [50]:
-                    student =  mobilenet_v3_small()
-                    optimizer = optim.RAdam(student.parameters(), lr=learning_rate)
-                    ce_loss = nn.CrossEntropyLoss()
 
-                    teacher.to("cuda")
-                    student.to("cuda")
-                    teacher.eval()  # Teacher set to evaluation mode
-                    student.train() # Student to train mode
 
-                    for rep in range(16):
-                        loss, train_acc, ce_loss_value, kd_loss_value = train_knowledge_distillation(teacher, student, filtered_train_loader, 10, temperature, disti, 1-disti, optimizer, ce_loss, disti)
-                        val_acc = test(student, filtered_test_loader, "cuda")
 
-                        # Log results to CSV
-                        with open(csv_file, mode='a', newline='') as file:
-                            # Create CSV writer
-                            csv_writer = csv.writer(file)
-                            csv_writer.writerow([(rep+1)*10, learning_rate, temperature, nr, loss, train_acc, val_acc, disti])
-                        print(f"Epoch {(rep+1)*10}/{16*10}, Learningrate: {learning_rate},Temperature: {temperature}, ModelNR: {nr}, Loss: {loss}, Train Accuracy: {train_acc}, Validation Accuracy: {val_acc}, Distillation: {disti}, CE_Loss: {ce_loss_value}, KD_Loss: {kd_loss_value}")
-                    model_filename = f'./FINFINFIN/model_distillation_{disti}_fold_{nr}.pth'
-                    torch.save(student.state_dict(), model_filename)
+def write_to_csv(dir, epoch, learning_rate, temperature, model_number, loss, train_acc, val_acc, loss_factor_kd, ce_loss_value, kd_loss_value):
+    csv_file = dir + '/results.csv'
+    with open(csv_file, mode='a', newline='') as file:
+        csv_writer = csv.writer(file)
+        csv_writer.writerow([epoch+1, learning_rate, temperature, model_number, loss, train_acc, val_acc, loss_factor_kd])
+    print(f"Epoch {epoch+1}, Learningrate: {learning_rate},Temperature: {temperature}, ModelNR: {model_number}, Loss: {loss}, Train Accuracy: {train_acc}, Validation Accuracy: {val_acc}, Distillation: {loss_factor_kd}, CE_Loss: {ce_loss_value}, KD_Loss: {kd_loss_value}")
+
+
+def train_student_models(output_dir, epochs, teacher, train_loader, test_loader, number_of_models, temperature, learning_rate, csv_file):
+    for model_number in range(number_of_models):
+        for loss_factor_kd in [0.5,0,0.25,0.75,1]:
+            # Load the student model
+            student =  mobilenet_v3_small()
+
+            # Define the optimizer and the loss function
+            optimizer = optim.RAdam(student.parameters(), lr=learning_rate)
+            ce_loss = nn.CrossEntropyLoss()
+
+            # Send both models to the GPU
+            teacher.to("cuda")
+            student.to("cuda")
+            teacher.eval()  # Teacher set to evaluation mode
+            student.train() # Student to train mode
+
+            # Define the hyperparameters
+            for epoch in range(epochs):
+                loss, train_acc, ce_loss_value, kd_loss_value = train_with_knowledge_distillation(teacher, student, train_loader, temperature, loss_factor_kd, 1-loss_factor_kd, optimizer, ce_loss, loss_factor_kd)
+                val_acc = test_accuracy(student, test_loader)
+
+                # Log results to CSV
+                write_to_csv(csv_file, epoch, learning_rate, temperature, model_number, loss, train_acc, val_acc, loss_factor_kd, ce_loss_value, kd_loss_value)
+
+            # Save the trained model
+            model_filename = f'{output_dir}/model_distillation_{loss_factor_kd}_fold_{model_number}.pth'
+            torch.save(student.state_dict(), model_filename)
+
+def main():
+    # Define the command line arguments
+    parser = argparse.ArgumentParser(description='Knowledge Distillation Training')
+
+    # Overview over all arguments:
+    # 1. --epochs: number of epochs to train the each model
+    # 2. --learning_rate: learning rate for the optimizer
+    # 3. --temperature: temperature for the knowledge distillation
+    # 4. --num_models: number of models to train for each configuration
+    # 5. --output_directory: directory to save the trained models and the training results
+
+    parser.add_argument('--epochs', type=int, default=160, help='Number of epochs to train the model')
+    parser.add_argument('--learning_rate', type=float, default=0.003, help='Learning rate for the optimizer')
+    parser.add_argument('--temperature', type=float, default=50, help='Temperature for the knowledge distillation')
+    parser.add_argument('--num_models', type=int, default=10, help='Number of models to train for each configuration')
+    parser.add_argument('--output_directory', type=str, default='./output', help='Directory to save the trained models and the training results')
+
+    # Read the command line arguments
+    epochs = argparse.parse_args().epochs
+    temperature = argparse.parse_args().temperature
+    learning_rate = argparse.parse_args().learning_rate
+    num_models = argparse.parse_args().num_models
+    output_directory = argparse.parse_args().output_directory
+
+
+    # Define the indeces of the selected classes from the ImageNet dataset that are used for training
+    selected_classes = [1, 3, 11, 31, 222, 277, 284, 295, 301, 325, 330, 333, 342, 368, 386, 388, 404, 412, 418, 436, 449, 466, 487, 492, 502, 510, 531, 532, 574, 579, 606, 617, 659, 670, 695, 703, 748, 829, 846, 851, 861, 879, 883, 898, 900, 914, 919, 951, 959, 992]
+    non_selected_classes = set(range(1000)) - set(selected_classes)
+
+    # Create data loaders for the filtered datasets
+    train_loader, test_loader = create_dataloader()
+
+    # Load the pre-trained ResNet-50 model
+    teacher = resnet50(weights=ResNet50_Weights.DEFAULT)
+
+    # Prepare the CSV file
+    prepare_csv_file(argparse.parse_args().output_directory)
+
+    # Start training loop
+    train_student_models(output_directory, epochs, teacher, train_loader, test_loader, num_models, temperature, learning_rate, output_directory)
 
 if __name__ == "__main__":
     main()
