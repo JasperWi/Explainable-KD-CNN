@@ -30,7 +30,7 @@ This repository contains the following two scripts:
     - `--learning_rate`: Learning rate for the optimizer. (Default: 0.003)
     - `--temperature`: Temperature for the knowledge distillation. (Default: 50)
     - `--num_models`: Number of models to train for each configuration. (Default: 10)
-    - `--output_directory`: Directory to save the trained models and training results.
+    - `--output_directory`: Directory to save the trained models and training results. (Default: './output')
     - `--imageNet_path`: Path to the ImageNet dataset.
 
 2. `assess_explainability`: This script can be used to assess the explainability of a trained model using the Quantus library. The script will generate explanations for the specified model using the specified images and save the explanations to the specified output directory.
@@ -42,7 +42,7 @@ This repository contains the following two scripts:
 
     Arguments:
     - `--path_to_checkpoints`: Path to the checkpoint files. (Default: './output')
-    - `--path_to_data`: Path to the ImageNet dataset.
+    - `--path_to_data`: Path to the ImageNet_S dataset.
     - `--output_folder`: Path to the output folder. (Default: './output')
     - `--num_models`: Number of models to evaluate. (Default: 5)
 
