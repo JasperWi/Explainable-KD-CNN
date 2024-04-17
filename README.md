@@ -21,18 +21,18 @@ This repository contains the following two scripts:
 
 1. `knowledge_distillation_training.py`: This script can be used to train a student model based on the MobileNetV3-small architecture on the ImageNet dataset using response-based knowledge distillation. The script will use a ResNet-50 teacher model to generate the soft targets for the student model in combination with the hard targets from the ImageNet dataset. The script will save the trained student model to the specified output directory.
 
-To use the script, you can run the following command:
+    To use the script, you can run the following command:
 
-    python knowledge_distillation_training.py --epochs <num_epochs> --learning_rate <lr> --temperature <temperature> --num_models <num_models> --output_directory <output_dir> --imageNet_path <imageNet_path>
+        python knowledge_distillation_training.py --epochs <num_epochs> --learning_rate <lr> --temperature <temperature> --num_models <num_models> --output_directory <output_dir> --imageNet_path <imageNet_path>
 
-Arguments:
-- `--epochs`: Number of epochs to train the model.
-- `--learning_rate`: Learning rate for the optimizer.
-- `--temperature`: Temperature for the knowledge distillation.
-- `--num_models`: Number of models to train for each configuration.
-- `--output_directory`: Directory to save the trained models and training results.
-- `--imageNet_path`: Path to the ImageNet dataset.
-    
+    Arguments:
+    - `--epochs`: Number of epochs to train the model.
+    - `--learning_rate`: Learning rate for the optimizer.
+    - `--temperature`: Temperature for the knowledge distillation.
+    - `--num_models`: Number of models to train for each configuration.
+    - `--output_directory`: Directory to save the trained models and training results.
+    - `--imageNet_path`: Path to the ImageNet dataset.
+        
 
 ## License
 
