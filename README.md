@@ -8,7 +8,21 @@ Welcome to the Explainable-KD-CNN repository! Here, you'll find the implementati
 
 To use the scripts in this repository, you'll need Python installed on your system. This repository uses Conda for managing dependencies. You can install the required packages using the following command:
 
-```bash
-conda install --file requirements.txt
-```
+    ```bash
+    conda install --file requirements.txt
+    ```
 
+Additionally you will need to install the Quantus library using the following command:
+    
+    ```bash
+    pip install git+https://github.com/understandable-machine-intelligence-lab/Quantus.git
+    ```
+
+## Usage
+
+
+
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
