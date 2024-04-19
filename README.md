@@ -14,6 +14,9 @@ Additionally you will need to install the Quantus library using the following co
     
     pip install git+https://github.com/understandable-machine-intelligence-lab/Quantus.git
 
+To use the scripts in this repository, you will need to download the ImageNet dataset. You can find more information on how to download the dataset on their [official website](http://www.image-net.org/).
+
+For the evaluation of the explainability of the models, you will need to additionally download the ImageNet_S{50} dataset from this [repository](https://github.com/LUSSeg/ImageNet-S).
 
 ## Usage
 
@@ -46,6 +49,18 @@ This repository contains the following two scripts:
     - `--output_folder`: Path to the output folder. (Default: './output')
     - `--num_models`: Number of models to evaluate. (Default: 5)
 
+
+## Acknowledgements
+
+The procedure for knowledge distillation is adopted from the code of the paper by Hinton et al. [1]. Their original implemenation can be found under [https://github.com/labmlai/annotated_deep_learning_paper_implementations/tree/master/labml_nn/distillation](this link).
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## References
+
+<a id="1">[1]</a>
+Hinton, G., Vinyals, O., & Dean, J. (2015).
+Distilling the Knowledge in a Neural Network.
+arXiv preprint arXiv:1503.02531.

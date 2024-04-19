@@ -113,7 +113,7 @@ def test_accuracy(model, test_loader):
 
 def train_with_knowledge_distillation(teacher, student, train_loader, T, optimizer, ce_loss, distillation_factor):
     """
-    Train the student model with knowledge distillation
+    Train the student model with a mix of knowledge distillation and the true label loss.
 
     :param teacher: The teacher model
     :param student: The student model
@@ -121,7 +121,7 @@ def train_with_knowledge_distillation(teacher, student, train_loader, T, optimiz
     :param T: The temperature for the knowledge distillation
     :param optimizer: The optimizer for the student model
     :param ce_loss: The cross-entropy loss function
-    :param distillation_factor: The factor for the knowledge distillation loss
+    :param distillation_factor: The factor for the knowledge distillation loss. 0 means only the true label loss is used, 1 means only the knowledge distillation loss is used and in between a weighted sum of both losses is used.
     :return: The average loss, the accuracy, the cross-entropy loss and the KD loss
     """
 
