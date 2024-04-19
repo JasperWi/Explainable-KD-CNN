@@ -52,7 +52,7 @@ This repository contains the following two scripts:
 
 ## Acknowledgements
 
-The procedure for knowledge distillation is adopted from the code of the paper by Hinton et al. [1]. Their original implemenation can be found under [https://github.com/labmlai/annotated_deep_learning_paper_implementations/tree/master/labml_nn/distillation](this link).
+The procedure for knowledge distillation is adopted from the code of the paper by Hinton et al. [[1]](#1). Their original implemenation can be found under [this link](https://github.com/labmlai/annotated_deep_learning_paper_implementations/tree/master/labml_nn/distillation).
 
 ## License
 
